@@ -1,4 +1,4 @@
-with open("data/test.txt") as file:
+with open("data/day6.txt") as file:
     mapa = [list(l.strip()) for l in file]
 
 # position of the guard and direction of movement
@@ -51,124 +51,106 @@ def collision_origin(mapa, pos, direction, rot):
         found = found or mapa[pos[0]][pos[1]] not in pos_dir.keys()
         pos = [pos[0]+direction[0],pos[1]+direction[1]]
     return found and mapa[pos[0]][pos[1]] != '#'
-#1st try 2nd star
-"""
-star_2 = 0
-# move while in map and map has .s
-while ("".join([x for row in mapa for x in row]).count(".")>0 and
-       pos_guard[0]+dir_guard[0] in range(len(mapa)) and
-       pos_guard[1]+dir_guard[1] in range(len(mapa[0]))):
 
-    next_pos = [pos_guard[0]+dir_guard[0],pos_guard[1]+dir_guard[1]]
-    
-    # If there is something directly in front of you, turn right 90 degrees.
-    if mapa[next_pos[0]][next_pos[1]] == '#':
-        dir_guard = rotate[str(dir_guard[0])+str(dir_guard[1])]
-        mapa[pos_guard[0]][pos_guard[1]] = '+'
-        
-    # Otherwise, take a step forward.
-    else:
-        # if colliding with line perpendicular to yours and not starting pos, possible loop
-        if (mapa[next_pos[0]][next_pos[1]] not in pos_dir.keys() and
-            mapa[next_pos[0]][next_pos[1]] in dir_mark.values() and
-            mapa[next_pos[0]][next_pos[1]] != mapa[pos_guard[0]][pos_guard[1]]):
-            #if following direction does not make me collide with starting pos before obstacle, loop
-            if not collision_origin(mapa.copy(), next_pos, dir_guard,True):
-                                  #  mapa[next_pos[0]][next_pos[1]] == '#'):
-                star_2 +=1
-                print_map(mapa)
-                print()
-            #if I collided with starting pos, obstacle could be placed on its side
-            
-        
-        #mark current position as stepped on (except starting pos)
-        if mapa[next_pos[0]][next_pos[1]] not in pos_dir.keys():
-            pos_guard = next_pos
-            mapa[pos_guard[0]][pos_guard[1]] = dir_mark[(dir_guard[0],dir_guard[1])]
-        else:
-            pos_guard = next_pos
-        
-"""
-#2nd try 2nd star
-#for each position while walking, what if we put an obstacle in front?
-#rotate to the right, and if you find your own path before finding an obstacle => loop
+#3rd try 2nd star
 star_2 = 0
 MAX_STEPS = len(mapa)*len(mapa[0])
 
-def collision_origin_v2(mapa, pos, direction):
-    '''
-    Checks if this trajectory finds a . before a +
-    '''
-    aux = rotate[str(direction[0])+str(direction[1])]
-    other_line = dir_mark[(aux[0],aux[1])]
-    found = False
-    steps = 0
-    #while in mapa and not found obstacle  
-    while (steps < MAX_STEPS and
-           #"".join([x for row in mapa for x in row]).count(".")>0 and
-           pos[0]+direction[0] in range(len(mapa)) and
-           pos[1]+direction[1] in range(len(mapa[0])) and
-           not found):
-        # |-+ followed by . is not ok
-        found = (mapa[pos[0]][pos[1]] in list(dir_mark.values())+['+'] and
-                mapa[pos[0]+direction[0]][pos[1]+direction[1]] == '.')
-        pos = [pos[0]+direction[0],pos[1]+direction[1]]
-        steps +=1
-    print("[check collision origin 2] position found:", pos,start_pos)
-    return found #and pos[0] != start_pos[0] and pos[1] != start_pos[1]
+def in_loop(mapa, pos_guard, dir_guard):
+    # in a loop if my position already has the expected symbol
+    current_symbol = mapa[pos_guard[0]][pos_guard[1]]
+    new_symbol = dir_mark[(dir_guard[0],dir_guard[1])]
+    return current_symbol == '+' or current_symbol == new_symbol
 
-def collision_my_path(mapa, pos, direction):
-    '''
-    Checks if this trajectory collides with a previously walked path (same orientation)
-    '''
-    #print("[collision path]-->", pos, direction)
-    #print_map(mapa)
-
-    #Always rotate
-    direction = rotate[str(direction[0])+str(direction[1])]
+def update_symbol(mapa, pos_guard, dir_guard):
+    #print("[update_symbol]", pos_guard, dir_guard)
+    current_symbol = mapa[pos_guard[0]][pos_guard[1]]
+    new_symbol = dir_mark[(dir_guard[0],dir_guard[1])]
+    if current_symbol == '#':
+        print("[update_symbol] ERROR: trying to step on #. Pos:",pos_guard)
+        return
+    if current_symbol != '.' and current_symbol != new_symbol:
+        new_symbol = '+'
+    if (pos_guard[0]+dir_guard[0] in range(len(mapa)) and #in mapa
+        pos_guard[1]+dir_guard[1] in range(len(mapa[0])) and
+        mapa[pos_guard[0]+dir_guard[0]][pos_guard[1]+dir_guard[1]] == '#'):
+        new_symbol = '+'
         
-    found = False
-    steps = 0
-    #while in mapa and not found obstacle  
-    while (steps < MAX_STEPS and
-           #"".join([x for row in mapa for x in row]).count(".")>0 and
-           pos[0]+direction[0] in range(len(mapa)) and
-           pos[1]+direction[1] in range(len(mapa[0])) and
-           mapa[pos[0]][pos[1]] != '#' and not found):
-        found = (mapa[pos[0]][pos[1]] == dir_mark[(direction[0], direction[1])]
-                 or mapa[pos[0]][pos[1]] == '+')
-        pos = [pos[0]+direction[0],pos[1]+direction[1]]
-        steps +=1
-        
-    return found and not collision_origin_v2(mapa, pos, direction)
+    mapa[pos_guard[0]][pos_guard[1]] = new_symbol
+    return mapa
 
-#
+def walk(mapa, start_pos, start_dir):
+    pos_guard = start_pos
+    dir_guard = start_dir
+    steps = 0
+    visited = set()
+    
+    while (steps < MAX_STEPS and # just in case
+           pos_guard[0]+dir_guard[0] in range(len(mapa)) and #in mapa
+           pos_guard[1]+dir_guard[1] in range(len(mapa[0]))):
+    
+        next_pos = [pos_guard[0]+dir_guard[0],pos_guard[1]+dir_guard[1]]
+        # If there is something directly in front of you, turn right 90 degrees.
+        if mapa[next_pos[0]][next_pos[1]] == '#':
+            dir_guard = rotate[str(dir_guard[0])+str(dir_guard[1])]
+        # Otherwise, check loop and take a step forward.
+        else:
+            if (tuple(next_pos), tuple(dir_guard)) in visited:#start_pos == next_pos and dir_guard == start_dir: #in_loop(mapa, next_pos, dir_guard)
+                return pos_guard, dir_guard, 1
+            visited.add((tuple(next_pos), tuple(dir_guard)))
+            pos_guard = next_pos
+            mapa = update_symbol(mapa, pos_guard, dir_guard)
+            steps += 1
+        
+    # state is 0 if out of mapa
+    #          1 if found loop
+    return pos_guard, dir_guard, 0
+
+import time
+from copy import deepcopy
+
 steps = 0
-while (steps < MAX_STEPS and
-       #"".join([x for row in mapa for x in row]).count(".")>0 and
-       pos_guard[0]+dir_guard[0] in range(len(mapa)) and
+#take a step. put an obstacle in front. walk. if loop, count loop. remove obstacle and continue.
+while (steps < MAX_STEPS and # just in case
+       pos_guard[0]+dir_guard[0] in range(len(mapa)) and #in mapa
        pos_guard[1]+dir_guard[1] in range(len(mapa[0]))):
     
+    # take a step
+    #print_map(mapa)
+    #print("- step",steps)
+    #print("Walking")
     next_pos = [pos_guard[0]+dir_guard[0],pos_guard[1]+dir_guard[1]]
-    # If there is something directly in front of you, turn right 90 degrees and take a step.
+    # If there is something directly in front of you, turn right 90 degrees.
     if mapa[next_pos[0]][next_pos[1]] == '#':
-        mapa[pos_guard[0]][pos_guard[1]] = '+'
         dir_guard = rotate[str(dir_guard[0])+str(dir_guard[1])]
-        pos_guard = [pos_guard[0]+dir_guard[0],pos_guard[1]+dir_guard[1]]
-    # Otherwise, check possible obstable in front. Also, take a step forward.
+    # Otherwise, check loop and take a step forward.
     else:
-        if collision_my_path(mapa, pos_guard, dir_guard):
-            print_map(mapa)
-            print("loop!")
-            star_2 += 1
-        if  mapa[pos_guard[0]][pos_guard[1]] in ['|','-']:
-            mapa[pos_guard[0]][pos_guard[1]] = '+'
-        else:
-            mapa[pos_guard[0]][pos_guard[1]] = dir_mark[(dir_guard[0],dir_guard[1])]
+   
+        # put an obstacle in front
+        mapa_copy = deepcopy(mapa)
+        new_obs_pos = [pos_guard[0]+dir_guard[0],pos_guard[1]+dir_guard[1]]
+        if new_obs_pos[0] not in range(len(mapa)) or new_obs_pos[1] not in range(len(mapa[0])):
+            break
+        mapa_copy[new_obs_pos[0]][new_obs_pos[1]] = '#'
+        #print("obstacle in",new_obs_pos)
+    
+        #walk
+        _,_,state = walk(mapa_copy, pos_guard, dir_guard)
+        #print("obstacle state", state)
+    
+        # if loop, count loop.
+        if state>0:
+            star_2 += 1 if new_obs_pos != start_pos else 0
+            #mapa_copy[new_obs_pos[0]][new_obs_pos[1]] = 'O'
+            #print_map(mapa_copy)
+            #print("LOOP!", new_obs_pos)
+        # remove obstacle and continue
         pos_guard = next_pos
+        mapa = update_symbol(mapa, pos_guard, dir_guard)
         steps += 1
+        #time.sleep(1)
 
-
+#1st star
 """
 # move while in map and map has .s
 while ("".join([x for row in mapa for x in row]).count(".")>0 and
@@ -193,5 +175,5 @@ print("star 1:", "".join([x for row in mapa for x in row]).count("X")+1)
 print("star 2:", star_2)
 
 # time for star 1 -> 21.59 min
-# time for star 2 -> 52 min so far (result 656 too low)
+# time for star 2 -> 52 min so far (result 656 too low, 1885 is too high) NOT: 1616
 # time for day 5 ->   min
